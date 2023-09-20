@@ -1,0 +1,73 @@
+#!/usr/bin/env python
+
+import argparse
+from pathlib import Path
+import sys
+
+import megabump_utils as mb
+
+
+def export_submodule_head(args, submodule_rel_path: str):
+    super_repo_path = args.repo_path
+    super_repo_name = args.repo_path.name
+    super_branch = mb.git_current_branch(repo_dir=args.repo_path)
+    print(f"Super-repo '{super_repo_name}' is on branch '{super_branch}'")
+    submodule_path = super_repo_path / submodule_rel_path
+    print(f"Operating on submodule {submodule_path}")
+    if not mb.check_origin_update_help(submodule_path):
+        return 1
+    mb.git_fetch(repository="origin", repo_dir=submodule_path)
+    submodule_head, submodule_summary = mb.git_current_commit(repo_dir=submodule_path)
+    print(f"Submodule at {submodule_head}\n  {submodule_summary}")
+    submodule_merge_base = mb.git_merge_base(
+        submodule_head, "origin/main", repo_dir=submodule_path
+    )
+    if submodule_merge_base == submodule_head:
+        print("Submodule commit is upstream. Nothing to do.")
+        return 0
+
+    submodule_branch = args.submodule_branch or f"sm-{super_repo_name}-{super_branch}"
+    print(
+        f"Submodule merge base {submodule_merge_base} diverges from upstream. Will persist on {submodule_branch}."
+    )
+
+    # Get the remote topic head.
+    remote_topic_head = mb.git_remote_head(
+        "origin", f"refs/heads/{submodule_branch}", repo_dir=submodule_path
+    )
+
+    # Early exit if precisely at this commit.
+    if remote_topic_head == submodule_head:
+        print(f"Submodule branch {submodule_branch} is already at {submodule_head}")
+        return 0
+
+    # If the branch does not exist, just push to it and exit.
+    if not remote_topic_head:
+        print(f"Submodule branch {submodule_branch} does not exist. Pushing.")
+        mb.git_exec(
+            ["push", "origin", f"{submodule_head}:refs/heads/{submodule_branch}"],
+            repo_dir=submodule_path,
+        )
+        print("PLEASE IGNORE ANY NOTICE ABOUT CREATING A PR")
+        return 0
+    
+    # Check if the submodule_head is an ancestor of the current remote_topic_head
+    # and exit if so (it is already reachable).
+
+    raise NotImplementedError
+
+
+def main(args):
+    return export_submodule_head(args, "third_party/llvm-project")
+
+
+def parse_arguments(argv):
+    parser = argparse.ArgumentParser(description="Submodule exporter")
+    parser.add_argument("--repo-path", default=mb.work_path / "iree", type=Path)
+    parser.add_argument("--submodule-branch")
+    args = parser.parse_args(argv)
+    return args
+
+
+if __name__ == "__main__":
+    main(parse_arguments(sys.argv[1:]))

@@ -1,0 +1,4 @@
+#!/bin/bash
+# Starts a byobu session for tracking the integrate.
+cd $(dirname $0)/..
+byobu -S megabump

@@ -1,0 +1,54 @@
+#!/usr/bin/env python
+# Generates a status of the current IREE commits.
+
+import json
+import random
+import megabump_utils as mb
+
+
+current_branch = mb.git_current_branch(repo_dir=mb.iree_path)
+llvm_commit, llvm_desc = mb.git_current_commit(repo_dir=mb.llvm_submodule_path)
+
+MESSAGES = [
+    "Ahoy! There's trouble on the track ahead and I've halted",
+    "Huzzah! I found a break in the track ahead and am holding up",
+    "Yip! The track is broken ahead and I'm pausing",
+    "Arrgh! I see smoke ahead in me glass, and unless if we want to visit Davey Jones, we's better be castin' anchor on",
+]
+
+random.seed()
+
+prefix = MESSAGES[random.randint(0, len(MESSAGES) - 1)]
+
+message = (
+    f"{prefix} `{current_branch}` at:\n"
+    f"```\n{llvm_desc}\n```\n"
+    f"https://github.com/llvm/llvm-project/commit/{llvm_commit}"
+)
+
+builder = mb.DiscordStatusBuilder(message)
+log_path = mb.work_path / "iree_build.log"
+if log_path.exists():
+    print("Found log file... summarizing")
+    error_lines = []
+    with open(log_path, "rt") as f:
+        for line in f.readlines():
+            if line.startswith("FAILED: ") or " error: " in line or "Assertion" in line:
+                error_lines.append(line)
+
+    total_lines = len(error_lines)
+    if total_lines > 20:
+        error_lines = error_lines[0:20]
+        error_lines.append(f"... and {total_lines - len(error_lines)} more\n")
+    error_log = "".join(error_lines)
+    builder.add_attachment(
+        "errors.txt",
+        description="Summary of errors",
+        content_type="text/plain",
+        contents=error_log,
+    )
+else:
+    print("No log file found at", log_path)
+
+print(builder.generate())
+builder.post()

@@ -54,7 +54,7 @@ import textwrap
 import iree_utils
 
 LLVM_REPO_DIR = iree_utils.get_submodule_root("llvm-project")
-TRACK_PATHS = ("mlir",)
+TRACK_PATHS = ("mlir", "utils/bazel")
 
 
 class CurrentState:
@@ -152,15 +152,9 @@ def do_start(args):
 def do_next(args):
     fetch(args)
     state = CurrentState(args)
-    if state.current_iree_branch == "main":
-        raise RuntimeError("Cannot run auto_integrate next from main branch!")
-
-    # TODO: Check if a merge from main is needed and do it.
-    if not state.is_clean:
-        raise RuntimeError("Current branch state is unclean. Not implemented yet.")
     if not state.new_commits:
         print(f"Up to date! Not starting.")
-        return
+        sys.exit(99)
 
     next_commit, next_desc = state.find_next_commit()
     index_commit = state.index_of_next_commit(next_commit)
@@ -169,7 +163,12 @@ def do_next(args):
         f"of {len(state.new_commits)}):"
     )
     print(f"  {next_commit}: {next_desc}")
-    iree_utils.git_reset(next_commit, repo_dir=LLVM_REPO_DIR)
+    if state.is_clean:
+        print("Resetting LLVM head (branch is clean)")
+        iree_utils.git_reset(next_commit, repo_dir=LLVM_REPO_DIR)
+    else:
+        print("Rebasing LLVM")
+        iree_utils.git_rebase(next_commit, remote="upstream", repo_dir=LLVM_REPO_DIR)
     iree_utils.git_create_commit(
         message=(
             f"Advance LLVM to {next_commit}: {next_desc} "
