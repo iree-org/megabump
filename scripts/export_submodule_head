@@ -2,6 +2,7 @@
 
 import argparse
 from pathlib import Path
+import subprocess
 import sys
 
 import megabump_utils as mb
@@ -50,11 +51,48 @@ def export_submodule_head(args, submodule_rel_path: str):
         )
         print("PLEASE IGNORE ANY NOTICE ABOUT CREATING A PR")
         return 0
-    
+
     # Check if the submodule_head is an ancestor of the current remote_topic_head
     # and exit if so (it is already reachable).
+    try:
+        mb.git_exec(
+            ["merge-base", "--is-ancestor", submodule_head, remote_topic_head],
+            repo_dir=submodule_path,
+        )
+        print(
+            f"Commit {submodule_head} is reachable from remote branch {submodule_branch}. Doing nothing."
+        )
+        return
+    except subprocess.CalledProcessError as e:
+        # If not an ancestor, returncode will be 1. On general error, it will be
+        # something else.
+        if e.returncode != 1:
+            raise
 
-    raise NotImplementedError
+    # Create a splice commit that is based on the tree of the current submodule head
+    # and has parents of the current submodule head and the remote topic head.
+    # Note that the current branch is not touched, the commit is just created in the
+    # ether. We can push it to the remote topic branch to complete the splice.
+    print(f"Submodule head {submodule_head} is not on {submodule_branch}. Splicing.")
+    splice_commit = mb.git_exec(
+        [
+            "commit-tree",
+            submodule_head + "^{tree}",
+            "-p",
+            submodule_head,
+            "-p",
+            remote_topic_head,
+            "-m",
+            f"Splice submodule rebase {submodule_head} onto {remote_topic_head}",
+        ],
+        repo_dir=submodule_path,
+        capture_output=True,
+    ).strip()
+    print(f"Created splice commit {splice_commit}: pushing")
+    mb.git_exec(
+        ["push", "origin", f"{splice_commit}:refs/heads/{submodule_branch}"],
+        repo_dir=submodule_path,
+    )
 
 
 def main(args):

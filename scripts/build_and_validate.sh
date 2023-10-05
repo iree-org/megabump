@@ -5,7 +5,7 @@ td="$(cd $(dirname $0) && pwd)"
 echo "Activating Python venv."
 source "$td/work/venv/bin/activate"
 
-cd $td/work/iree
+cd $td/../work/iree
 
 cmake -G Ninja -B ../iree-build/ -S . \
     -DCMAKE_BUILD_TYPE=Release \

@@ -149,14 +149,14 @@ def git_checkout(ref, *, repo_dir=None):
     git_exec(["checkout", ref], repo_dir=repo_dir)
 
 
-def git_check_if_branch_exists(branch_name, remote=None):
+def git_check_if_branch_exists(branch_name, remote=None, repo_dir=None):
     args = ["branch", "--all", "-l"]
     full_name = branch_name
     if remote is not None:
         args.append("--remote")
         full_name = f"{remote}/{full_name}"
     args.append(full_name)
-    output = git_exec(args, capture_output=True, quiet=True).strip()
+    output = git_exec(args, capture_output=True, quiet=True, repo_dir=repo_dir).strip()
     if output:
         raise SystemExit(f"ERROR: {full_name} already exists.\n")
 
@@ -164,8 +164,9 @@ def git_check_if_branch_exists(branch_name, remote=None):
 def git_create_branch(
     branch_name, *, checkout=True, ref=None, force=False, repo_dir=None, remote=None
 ):
-    git_check_if_branch_exists(branch_name)
-    git_check_if_branch_exists(branch_name, remote=remote)
+    if not force:
+        git_check_if_branch_exists(branch_name)
+        git_check_if_branch_exists(branch_name, remote=remote)
     branch_args = ["branch"]
     if force:
         branch_args.append("-f")
@@ -272,7 +273,7 @@ def git_merge_base(ref1, ref2, *, repo_dir=None) -> str:
 def git_create_commit(*, message, add_all=False, repo_dir=None):
     if add_all:
         git_exec(["add", "-A"], repo_dir=repo_dir)
-    git_exec(["commit", "-m", message])
+    git_exec(["commit", "-m", message], repo_dir=repo_dir)
 
 
 def git_ls_remote_branches(repository_url, *, filter=None, repo_dir=None):

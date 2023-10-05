@@ -8,15 +8,15 @@ while true; do
     echo " INTEGRATE ITERATION"
     echo "***********************************************************"
 
-    ./auto_integrate.py status
+    $td/llvm_revision status
 
     echo "***** PERFORMING BUILD AT CURRENT REVISION *****"
-    ./build_and_validate.sh 2>&1 | tee $td/work/iree_build.log
+    $td/build_and_validate.sh 2>&1 | tee $td/../work/iree_build.log
 
     echo "***** ADVANCING *****"
     while true; do
         set +e
-        ./auto_integrate.py next
+        $td/llvm_revision next
         rc="$?"
         set -e
         if [ "$rc" == "99" ]; then
