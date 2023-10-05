@@ -1,4 +1,7 @@
 #!/bin/bash
 # Starts a byobu session for tracking the integrate.
 cd $(dirname $0)/..
-byobu -S megabump
+if ! byobu attach-session -t megabump; then
+    echo "Starting session megabump..."
+    byobu new -s megabump
+fi
