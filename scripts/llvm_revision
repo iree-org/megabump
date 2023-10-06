@@ -52,9 +52,10 @@ class CurrentState:
                 if commit == self.args.advance_to:
                     return commit, desc
             else:
-                raise ValueError(
-                    f"Requested advance to commit {self.args.advance_to} not found"
+                print(
+                    f"WARNING: Commit is not in recommended requested range. You may want to return to {self.current_commit} if this isn't right."
                 )
+                return commit, mb.git_commit_summary(commit, repo_dir=LLVM_REPO_DIR)
         else:
             if not self.new_commits:
                 raise ValueError(f"No new commits")
@@ -112,10 +113,9 @@ def do_status(args):
     if state.is_clean:
         print(f"  : Current commit is clean (no patches)")
     else:
-        # TODO: Also get the merge base with --independent to get the carried
-        # patches.
+        merge_base_summary = mb.git_commit_summary(state.merge_base_commit, repo_dir=LLVM_REPO_DIR)
         print(
-            f"  : Current commit has diverging patches with base {state.merge_base_commit}"
+            f"  : Current commit has diverging patches with base {state.merge_base_commit} ({merge_base_summary})"
         )
 
     # Compute the different commits.
@@ -157,7 +157,7 @@ def parse_arguments(argv):
     )
     next_parser = subparsers.add_parser("next")
     next_parser.add_argument(
-        "--advance_to", default=None, nargs="?", help="Advance to the given LLVM commit"
+        "--advance-to", default=None, nargs="?", help="Advance to the given LLVM commit"
     )
     next_parser.add_argument(
         "--no-export",
