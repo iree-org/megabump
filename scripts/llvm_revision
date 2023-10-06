@@ -106,6 +106,12 @@ def do_next(args):
         )
 
 
+def do_range(args):
+    logs = mb.git_log_range(refs=(f"{args.from_ref}^1..{args.to_ref}",), repo_dir=LLVM_REPO_DIR)
+    for commit, desc in logs:
+        print(f"{commit} : {desc}")
+
+
 def do_status(args):
     fetch(args)
     state = CurrentState(args)
@@ -113,7 +119,9 @@ def do_status(args):
     if state.is_clean:
         print(f"  : Current commit is clean (no patches)")
     else:
-        merge_base_summary = mb.git_commit_summary(state.merge_base_commit, repo_dir=LLVM_REPO_DIR)
+        merge_base_summary = mb.git_commit_summary(
+            state.merge_base_commit, repo_dir=LLVM_REPO_DIR
+        )
         print(
             f"  : Current commit has diverging patches with base {state.merge_base_commit} ({merge_base_summary})"
         )
@@ -144,6 +152,8 @@ def setup_remotes(args):
 def main(args):
     if args.sub_command == "next":
         do_next(args)
+    elif args.sub_command == "range":
+        do_range(args)
     elif args.sub_command == "status":
         do_status(args)
     else:
@@ -166,6 +176,9 @@ def parse_arguments(argv):
         help="Disable export of the submodule commit",
     )
     status_parser = subparsers.add_parser("status")
+    range_parser = subparsers.add_parser("range")
+    range_parser.add_argument("from_ref", help="Starting commit")
+    range_parser.add_argument("to_ref", help="Ending commit")
 
     args = parser.parse_args(argv)
     return args
