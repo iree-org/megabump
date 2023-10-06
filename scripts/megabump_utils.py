@@ -16,7 +16,6 @@ iree_path = work_path / "iree"
 llvm_submodule_path = iree_path / "third_party" / "llvm-project"
 
 BOUNDARY = "gc0p4Jq0M2Yt08j34c0p"
-WEBHOOK_URL = "TODO: Insert Discord WebHook"
 
 
 class DiscordStatusBuilder:
@@ -74,8 +73,16 @@ class DiscordStatusBuilder:
         return out.getvalue()
 
     def post(self):
+        webhook_path = repo_path / ".discord_webhook"
+        try:
+            with open(webhook_path, "rt") as f:
+                webhook_url = f.read().strip()
+        except IOError as e:
+            raise RuntimeError(
+                f"Could not read discord webhook URL from {webhook_path}"
+            )
         payload = self.generate()
-        request = Request(WEBHOOK_URL, payload, method="POST")
+        request = Request(webhook_url, payload, method="POST")
         request.add_header("Content-Type", f"multipart/form-data;boundary={BOUNDARY}")
         # Discord seems to block the default Python UA with Forbidden.
         request.add_header(
@@ -244,6 +251,18 @@ def git_current_commit(*, repo_dir=None) -> Tuple[str, str]:
     parts = output.split(" ")
     # Return commit, full_summary
     return parts[0], output
+
+
+def git_commit_summary(ref, repo_dir=None) -> str:
+    output = git_exec(
+        ["log", "-n", "1", "--pretty=format:%H %s (%an on %ci)", ref],
+        capture_output=True,
+        repo_dir=repo_dir,
+        quiet=True,
+    )
+    output = output.strip()
+    # Return full_summary
+    return output
 
 
 def git_log_range(refs=(), *, repo_dir=None, paths=()) -> List[Tuple[str, str]]:

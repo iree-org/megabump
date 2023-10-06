@@ -8,6 +8,10 @@ import megabump_utils as mb
 
 current_branch = mb.git_current_branch(repo_dir=mb.iree_path)
 llvm_commit, llvm_desc = mb.git_current_commit(repo_dir=mb.llvm_submodule_path)
+merge_base_commit = mb.git_merge_base(llvm_commit, "upstream/main", repo_dir=mb.llvm_submodule_path)
+if merge_base_commit != llvm_commit:
+    llvm_commit = merge_base_commit
+    llvm_desc = mb.git_commit_summary(llvm_commit, repo_dir=mb.llvm_submodule_path)
 
 MESSAGES = [
     "Ahoy! There's trouble on the track ahead and I've halted",
