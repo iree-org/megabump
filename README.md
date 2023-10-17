@@ -242,3 +242,70 @@ do one of:
   things there.
 
 These issues tend to be rare. Ask.
+
+## TensorFlow Breakages
+
+We all hate it when it happens, but if you do this long enough, you're going to
+have to... deal with a TF breakage. I wish I could tell you it's going to be
+ok, but the best I can do is to tell you that no one has died yet.
+
+Since TF failures on an integrate are almost always MLIR related, the chances
+are that a simple bisect of the integrate branch will identify the culprit.
+Since full CI runs on the integrate branch are sparse, you'll typically have a
+good (green) commit and then some time later, one where the TF test started
+failing. Let's call these `GOOD_COMMIT` and `BAD_COMMIT`. Here is what to do.
+
+Sync to the bad commit and start the bisect:
+```
+git checkout $BAD_COMMIT
+git bisect start
+git bisect bad
+git bisect good $GOOD_COMMIT
+```
+
+Prepare the build:
+```
+cd work/iree-build
+# ASAN and the TF goo don't play nicely. It can be overcome, but recommend not.
+cmake -DIREE_ENABLE_ASAN=OFF .
+```
+
+Install python stuff:
+
+```
+source work/venv/bin/activate
+pip install -r work/iree/integrations/tensorflow/test_requirements.txt
+pip install -e work/iree/integrations/tensorflow/python_projects/iree_tf
+pip install -e work/iree/integrations/tensorflow/python_projects/iree_tflite
+deactivate
+```
+
+Craft a repro script and run it at each step. Here's one from a recent run:
+
+```
+#!/bin/bash
+
+set -euo pipefail
+
+(cd $PWD/work/iree && git submodule update)
+(cd $PWD/work/iree-build && ninja)
+source /home/stella/megabump/work/venv/bin/activate
+export PYTHONPATH=$PWD/work/iree-build/compiler/bindings/python:$PWD/work/iree-build/runtime/bindings/python:$PWD/work/iree/integrations/tensorflow/test/python
+# If you want to try ASAN, the following will help.
+#export LD_PRELOAD=$(clang-14 -print-file-name=libclang_rt.asan-x86_64.so)
+#export ASAN_OPTIONS=detect_leaks=0
+# Take the following from the failing test line.
+python -m iree_tfl_tests.mobilenet_v1_test --target_backend=vulkan
+exit $?
+```
+
+If the repro script passes, run `git bisect good`. Otherwise, `git bisect bad`. In
+the common case, you are dealing with compiler crashes, so you can do that on a
+machine without the needed devices. However, if doing so, you will have to
+differentiate whether it fails with a compiler crash or a runtime/device not found
+issue (which should be considered good).
+
+When done, run `git bisect reset && git submodule update`.
+
+Note that in this example, bisects are run from `work/iree` and the repro script
+is run from this dir.
