@@ -7,7 +7,8 @@ source "$td/../work/venv/bin/activate"
 
 cd $td/../work/iree
 
-cmake -G Ninja -B ../iree-build/ -S . \
+# Use absolute paths to avoid problems with symlinked iree repo
+cmake -G Ninja -B $td/../work/iree-build -S . \
     -DCMAKE_BUILD_TYPE=Release \
     -DIREE_ENABLE_ASAN=ON \
     -DIREE_BYTECODE_MODULE_ENABLE_ASAN=ON \
@@ -26,4 +27,4 @@ cd $td/../work/iree-build
 echo "Building all..."
 ninja all
 echo "Building test deps..."
-ninja -j 20 iree-test-deps
+ninja iree-test-deps
