@@ -38,6 +38,7 @@ source work/venv/bin/activate
 cd work/iree
 python -m pip install --upgrade pip
 python -m pip install -r runtime/bindings/python/iree/runtime/build_requirements.txt
+deactivate
 ```
 
 ## Starting an integrate
