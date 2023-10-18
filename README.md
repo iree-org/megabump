@@ -20,6 +20,26 @@ The integrate can be stopped at any point, adjusted and landed. Typically
 if up against an egregious commit, we manually back off by one commit,
 push and land that. Then pick up the work to fix.
 
+## Setup
+
+```
+# Checkout the megabump repo
+git clone https://github.com/shark-infra/megabump.git
+
+cd megabump
+mkdir work
+
+# Checkout iree into work/iree (Can also create a symlink to existing clone)
+git clone https://github.com/openxla/iree work/iree
+
+# Create a venv and install python deps in it
+python -m venv work/venv
+source work/venv/bin/activate
+cd work/iree
+python -m pip install --upgrade pip
+python -m pip install -r runtime/bindings/python/iree/runtime/build_requirements.txt
+```
+
 ## Starting an integrate
 
 Run `./scripts/start_integrate` to reset `work/iree` to the main branch,
