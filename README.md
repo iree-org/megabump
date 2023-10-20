@@ -47,37 +47,81 @@ Run `./scripts/start_integrate` to reset `work/iree` to the main branch,
 fast-forward to upstream HEAD and create a new date-based integrate branch.
 This will start the branch with an empty commit with a description.
 
+You usually want to push this newly created branch to upstream and submit a
+draft PR from that branch.
 TODO: Add a script to push this branch to the repo and create a draft PR.
 
 Then, it usually helps to plan your angle of attack. Run 
-`./scripts/llvm_revision status` to see a list of all commits estimated to
-have some impact on the project (reverse chronological, with the next commit
-last). It's also a good idea at this point to look at the 
-`third_party/llvm-project` submodule log and see what local patches we are
-carrying, etc. Correlate those with what is coming to plan.
+`./scripts/llvm_revision status`.
 
-If the submodule is clean, you can just proceed. Otherwise, apply any reverts,
-cherry-picks, or resets to get to the starting state you want.
+The output looks something like:
+
+```
+==> llvm-project is currently at <local-commit> <patch local description> <author local info>
+  : Current commit has diverging patches with base <BASE-COMMIT> (<BASE-COMMIT> <patch base description> <author base info>)
+==> <N> affecting commits between upstream head and current:
+  <commit 1>: <patch 1 description> <author 1 info>
+  <commit 2>: <patch 2 description> <author 2 info>
+  ...
+  <commit N>: <patch N description> <author N info>
+```
+
+The output gives information about how the `third_party/llvm-project` submodule
+log looks like:
+  - Everything above the `<BASE-COMMIT>` is a local patch we are carrying.
+  - The "affecting commits between upstream head and current" are commits
+    that could have a potential impact, listed in reverse chronological order
+    with the next commit last as `<commit N>`.
+
+It is a good idea at this stage to look at what local patches we are carrying
+(usually reverts, chery-picks, etc.) and correlate those with what is coming to
+plan.
+
+If the submodule is clean i.e. you have no local patches, you can just proceed.
+Otherwise, apply any reverts, cherry-picks, or resets to get to the starting
+state you want.
 
 ## Main integrate loop
+
+### Automatic smoketest/advance loop
 
 Run `./scripts/loop.sh` to run the main integrate smoketest/advance loop. At
 the conclusion of each successful smoketest, the submodule will be advanced and
 a descriptive commit added to the `iree` repo.
 
-This can be done manually with:
+### Manual advance
+
+To advance to the next commit:
 
 ```
-./scripts/llvm_revision next [--advance-to=<commit>]
+./scripts/llvm_revision next
 ```
 
-This will take the next affecting commit (see `./scripts/llvm_revision status`)
-and rebase the submodule onto it. Finally, if this results in local patches
-being carried, `./scripts/export_submodule_head` will be called, which will
-advance the `sm-iree-{integrate_branch_name}` branch in the https://github.com/shark-infra/llvm-project
-repository. This is done by creating special merge commits which ensure that
-all prior rebases on the branch remain reachable, allowing this to be a persistent
-submodule pointer that everyone can access.
+This will take the next affecting commit (see `./scripts/llvm_revision
+status`), rebase the submodule onto it and add a descriptive commit to the
+`iree` repo.
+
+To skip some commits and advance to a specific commit hash:
+
+```
+./scripts/llvm_revision next --advance-to=<commit hash>
+```
+
+### Manual smoketest
+
+```
+./scripts/build_and_validate.sh
+```
+
+### Carried local patches
+
+Finally, if the advance results in local patches being carried,
+`./scripts/export_submodule_head` will be called, which will advance the
+`sm-iree-{integrate_branch_name}` branch in the
+https://github.com/shark-infra/llvm-project repository. This is done by
+creating special merge commits which ensure that all prior rebases on the
+branch remain reachable, allowing this to be a persistent submodule pointer
+that everyone can access.
 
 ## On Failure
 
