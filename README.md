@@ -89,6 +89,9 @@ Run `./scripts/loop.sh` to run the main integrate smoketest/advance loop. At
 the conclusion of each successful smoketest, the submodule will be advanced and
 a descriptive commit added to the `iree` repo.
 
+This integerate loop can also be done manually, one commit at a time as shown
+in the next subsections.
+
 ### Manual advance
 
 To advance to the next commit:
