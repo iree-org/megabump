@@ -29,8 +29,14 @@ def advance_to(commit_id):
     return True
 
 
-def push_iree_branch():
-    pass
+def get_branch_name(thread_id) -> str | None:
+    # Get the title of this thread
+    try:
+        thread = bot.get_channel(thread_id)
+        return thread.name
+    except Exception as e:
+        print(e)
+        return None
 
 
 def parse_desc(desc):
@@ -78,6 +84,24 @@ async def check_role(ctx):
     if not any(role.name == ACCESS_ROLE for role in ctx.author.roles):
         await ctx.respond(
             f"You need the role: {ACCESS_ROLE} to use this command", ephemeral=True
+        )
+        return False
+    return True
+
+
+async def check_channel(ctx: discord.ApplicationContext):
+    branch_name = get_branch_name(ctx.channel_id)
+    if branch_name is None:
+        await ctx.respond(
+            f"Branch not found. Please start an integerate first or use this command from the integerate thread..",
+            ephemeral=True,
+        )
+        return False
+    current_branch = mb.git_current_branch(repo_dir=mb.iree_path)
+    if current_branch != branch_name:
+        await ctx.respond(
+            f"Trying to get status for branch {branch_name} but current integerate branch is {current_branch}. Please start a new integerate or use the command from the correct thread.",
+            ephemeral=True,
         )
         return False
     return True
@@ -140,7 +164,7 @@ class BuildButton(PaginatorButton):
             )
 
         # Send the embed
-        logs = "Building and testing..."
+        logs = "Building and testing...\n"
 
         # Cancel the paginator and replace it with a single embed
         await self.paginator.cancel(page=get_log_embed(logs))
@@ -197,7 +221,8 @@ async def status(ctx: discord.ApplicationContext):
     if not await check_role(ctx):
         return
 
-    # TODO: Add a check here if the branch and the integerate
+    if not await check_channel(ctx):
+        return
 
     # Defer the slash command since getting the commits may take a while
     await ctx.defer()
