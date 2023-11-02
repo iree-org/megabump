@@ -5,69 +5,14 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import Optional, Tuple
-
 import argparse
-from datetime import date
 import subprocess
 import sys
-import textwrap
 
 import megabump_utils as mb
+from current_state import CurrentState 
 
 LLVM_REPO_DIR = mb.llvm_submodule_path
-TRACK_PATHS = ("mlir", "utils/bazel")
-
-
-class CurrentState:
-    """Current state of the llvm-project integrate."""
-
-    def __init__(self, args):
-        self.args = args
-        self.current_commit, self.current_summary = mb.git_current_commit(
-            repo_dir=LLVM_REPO_DIR
-        )
-        # The common commit between the llvm-project submodule and upstream.
-        self.merge_base_commit = mb.git_merge_base(
-            self.current_commit, "upstream/main", repo_dir=LLVM_REPO_DIR
-        )
-        # Whether the current llvm-project commit is clean (True) or
-        # carries patches (False).
-        self.is_clean = self.merge_base_commit == self.current_commit
-        # List of (commit, desc) tuples in reverse chronological order for
-        # commits that upstream is ahead.
-        self.new_commits = mb.git_log_range(
-            refs=("upstream/main", f"^{self.merge_base_commit}"),
-            paths=TRACK_PATHS,
-            repo_dir=LLVM_REPO_DIR,
-        )
-
-    def find_next_commit(self) -> Tuple[str, str]:
-        """Finds the next LLVM commit to advance to.
-
-        Returns (commit, desc).
-        """
-        if self.args.advance_to:
-            for commit, desc in self.new_commits:
-                if commit == self.args.advance_to:
-                    return commit, desc
-            else:
-                print(
-                    f"WARNING: Commit is not in recommended requested range. You may want to return to {self.current_commit} if this isn't right."
-                )
-                return commit, mb.git_commit_summary(commit, repo_dir=LLVM_REPO_DIR)
-        else:
-            if not self.new_commits:
-                raise ValueError(f"No new commits")
-            else:
-                return next(reversed(self.new_commits))
-
-    def index_of_next_commit(self, needle_commit: str) -> int:
-        for i, (new_commit, desc) in enumerate(reversed(self.new_commits)):
-            if new_commit == needle_commit:
-                return i
-        return -1
-
 
 def do_next(args):
     fetch(args)
@@ -141,6 +86,9 @@ def fetch(args):
     mb.git_fetch(repository="origin", repo_dir=LLVM_REPO_DIR)
     mb.git_fetch(repository="upstream", repo_dir=LLVM_REPO_DIR)
 
+def do_fetch(args):
+    fetch(args)
+
 
 def setup_remotes(args):
     # We need to know what the real upstream repo is.
@@ -156,6 +104,8 @@ def main(args):
         do_range(args)
     elif args.sub_command == "status":
         do_status(args)
+    elif args.sub_command == "fetch":
+        do_fetch(args)
     else:
         raise ValueError(f"Unrecognized sub-command {args.sub_command}")
 
@@ -176,6 +126,7 @@ def parse_arguments(argv):
         help="Disable export of the submodule commit",
     )
     status_parser = subparsers.add_parser("status")
+    fetch_parser = subparsers.add_parser("fetch")
     range_parser = subparsers.add_parser("range")
     range_parser.add_argument("from_ref", help="Starting commit")
     range_parser.add_argument("to_ref", help="Ending commit")
