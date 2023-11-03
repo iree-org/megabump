@@ -2,7 +2,11 @@ from config import BOT_TOKEN, ACCESS_ROLE
 
 import discord
 from discord.ext.pages import Paginator, Page, PaginatorButton
+import os
 from datetime import datetime
+import psutil
+import asyncio
+import signal
 import time
 from current_state import CurrentState
 from integerate import start_integerate
@@ -96,10 +100,10 @@ def get_commit_embed(commit_id, desc):
         return embed
 
 
-async def check_role(ctx):
+async def check_role(ctx : discord.ApplicationContext | discord.Interaction):
     # Check if author has ACCESS_ROLE
-    if not any(role.name == ACCESS_ROLE for role in ctx.author.roles):
-        await ctx.respond(
+    if not any(role.name == ACCESS_ROLE for role in ctx.user.roles):
+        await ctx.response.send_message(
             f"You need the role: {ACCESS_ROLE} to use this command", ephemeral=True
         )
         return False
@@ -164,6 +168,44 @@ class AdvanceToButton(PaginatorButton):
         )
 
 
+class BuildActionRow(discord.ui.View):
+    def __init__(self, process: asyncio.subprocess.Process):
+        super().__init__(timeout=None)
+        self.process = process
+
+    @discord.ui.button(
+        label="Cancel",
+        style=discord.ButtonStyle.danger,
+        emoji="🛑",
+    )
+    async def callback(
+        self, button: discord.ui.Button, interaction: discord.Interaction
+    ):
+        # Check role
+        if not await check_role(interaction):
+            return
+
+        await interaction.response.send_message("Cancelling...", ephemeral=True)
+
+        channel = interaction.channel
+        assert isinstance(channel, discord.Thread)
+
+        # Terminate the process.
+        pid = self.process.pid
+        parent = psutil.Process(pid)
+        for child in parent.children(recursive=True):
+            if child.is_running():
+                child.kill()
+        if parent.is_running():
+            parent.kill()
+        await self.process.wait()
+
+        # Send a message that the build was cancelled.
+        await channel.send(embed=get_truncated_embed("Build and Test Cancelled", f""))
+        # Remove the buttons from the view
+        self.clear_items()
+
+
 class BuildButton(PaginatorButton):
     def __init__(self):
         emoji = discord.PartialEmoji(name="cmake", id=723710645631057940)
@@ -194,41 +236,50 @@ class BuildButton(PaginatorButton):
         # Cancel the paginator and replace it with a single embed
         assert isinstance(self.paginator, Paginator)
         await self.paginator.cancel(
-            page=get_truncated_embed(
-                "Building and Testing... (streamed every 10 seconds)", logs
-            )
+            page=get_truncated_embed("Building and Testing...", logs)
         )
         message = interaction.message
         assert message is not None
 
-        # Run the process and keep outputing to the embed
-        process = subprocess.Popen(
-            [mb.repo_path / "scripts/build_and_validate.sh"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            universal_newlines=True,
-            bufsize=1024,
+        process = await asyncio.create_subprocess_exec(
+            mb.repo_path / "scripts/build_and_validate.sh",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
         )
 
-        # Send logs every 10 seconds
-        curr_time = time.time()
-        for line in iter(process.stdout.readline, ""):
-            logs += line
-            if time.time() - curr_time > 10:
-                curr_time = time.time()
-                try:
-                    await message.edit(
-                        embed=get_truncated_embed(
-                            "Building and Testing... (streamed every 10 seconds)", logs
-                        )
-                    )
-                except Exception as e:
-                    print(e)
+        await message.edit(
+            embed=get_truncated_embed(
+                "Building and Testing... (streamed every 5 seconds)", logs
+            ),
+            view=BuildActionRow(process),
+        )
 
-        return_code = process.wait()
+        # Set file descriptor as non-blocking so we can sleep async
+        assert process.stdout is not None
+        while not process.stdout.at_eof():
+            # Sleep for 5 seconds
+            await asyncio.sleep(5)
+            # Try to read as many bytes as possible
+            out = await process.stdout.read(10000000)
+            # line is bytes, convert to str
+            out = out.decode("utf-8")
+            logs += out
+            try:
+                await message.edit(
+                    embed=get_truncated_embed(
+                        "Building and Testing... (streamed every 5 seconds)", logs
+                    ),
+                    view=BuildActionRow(process),
+                )
+            except Exception as e:
+                print(e)
+
+        return_code = await process.wait()
 
         if return_code != 0:
-            await message.edit(embed=get_truncated_embed("Build and Test Failed", logs))
+            await message.edit(
+                embed=get_truncated_embed("Build and Test Failed", logs), view=None
+            )
 
             error_lines = []
             for line in logs.split("\n"):
@@ -256,7 +307,7 @@ class BuildButton(PaginatorButton):
                 )
         else:
             await message.edit(
-                embed=get_truncated_embed("Build and Test Successful", logs)
+                embed=get_truncated_embed("Build and Test Successful", logs), view=None
             )
             channel = message.channel
             await channel.send(f"Build and Test Successful")
@@ -312,6 +363,9 @@ async def status(ctx: discord.ApplicationContext):
     pages = [
         Page(embeds=[get_commit_embed(commit[0], commit[1])]) for commit in commits
     ]
+
+    if len(pages) == 0:
+        pages = [Page(embeds=[get_truncated_embed("Already on Top of Trunk", "")])]
 
     paginator = Paginator(pages=pages, author_check=True, disable_on_timeout=True)
     paginator.add_button(AdvanceToButton())
