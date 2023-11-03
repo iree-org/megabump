@@ -3,6 +3,7 @@ from config import BOT_TOKEN, ACCESS_ROLE
 import discord
 from discord.ext.pages import Paginator, Page, PaginatorButton
 from datetime import datetime
+import time
 from current_state import CurrentState
 from integerate import start_integerate
 import megabump_utils as mb
@@ -11,6 +12,17 @@ import subprocess
 from io import BytesIO
 
 bot = discord.Bot()
+
+
+def get_truncated_embed(title, desc, color=0x3C09C8):
+    if len(desc) > 1500:
+        title += " (truncated)"
+    trim = desc[-1500:]
+    return discord.Embed(
+        title=title,
+        description=trim,
+        color=color,
+    )
 
 
 def get_status():
@@ -29,10 +41,15 @@ def advance_to(commit_id):
     return True
 
 
+def push_current_iree_to_github(branch_name, force=False):
+    mb.git_push_branch("origin", branch_name, repo_dir=mb.iree_path, force=force)
+
+
 def get_branch_name(thread_id) -> str | None:
     # Get the title of this thread
     try:
         thread = bot.get_channel(thread_id)
+        assert isinstance(thread, discord.Thread)
         return thread.name
     except Exception as e:
         print(e)
@@ -109,9 +126,11 @@ async def check_channel(ctx: discord.ApplicationContext):
 
 class AdvanceToButton(PaginatorButton):
     def __init__(self):
+        emoji = discord.PartialEmoji(name="github_actions", id=1009215250991697949)
         super().__init__(
             "advance_to",
             label="Advance To This Commit",
+            emoji=emoji,
             style=discord.ButtonStyle.green,
             row=1,
         )
@@ -119,47 +138,53 @@ class AdvanceToButton(PaginatorButton):
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.defer()
 
-        # Get current page title to get commit id
-        paginator = self.paginator
-        curr_page = paginator.pages[paginator.current_page]
+        assert isinstance(self.paginator, Paginator)
+        curr_page = self.paginator.pages[self.paginator.current_page]
         commit_id = curr_page.embeds[0].title
 
-        await interaction.followup.send(f"Trying to advance to commit: {commit_id}")
+        # Cancel the paginator and replace it with a single embed
+        await self.paginator.cancel(
+            page=get_truncated_embed(f"Advancing to commit {commit_id}", f"")
+        )
+        message = interaction.message
+        assert message is not None
 
-        # Advance to the commit
         try:
-            success = advance_to(commit_id)
+            advance_to(commit_id)
         except Exception as e:
             print(e)
-            success = False
+            return await message.edit(
+                embed=get_truncated_embed(f"Error advancing to commit {commit_id}", e)
+            )
 
-        if not success:
-            return await interaction.followup.send("Error advancing to commit")
-
-        await interaction.followup.send(f"Advanced to commit: {commit_id}")
-
-        # Disable the paginator
-        await self.paginator.cancel(page=curr_page)
+        return await message.edit(
+            embed=get_truncated_embed(
+                f"Advanced to commit {commit_id} Successfully", f""
+            )
+        )
 
 
 class BuildButton(PaginatorButton):
     def __init__(self):
+        emoji = discord.PartialEmoji(name="cmake", id=723710645631057940)
         super().__init__(
             "build",
             label="Build And Test",
             style=discord.ButtonStyle.blurple,
+            emoji=emoji,
             row=1,
         )
 
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.defer()
 
-        # Build an embed for output logs
-        def get_log_embed(log, title="Build and Test in Progress..."):
-            trimmed = log[-1500:]
+        def get_truncated_embed(title, desc):
+            if len(desc) > 1500:
+                title += " (truncated)"
+            trim = desc[-1500:]
             return discord.Embed(
                 title=title,
-                description=trimmed,
+                description=trim,
                 color=0x3C09C8,
             )
 
@@ -167,8 +192,14 @@ class BuildButton(PaginatorButton):
         logs = "Building and testing...\n"
 
         # Cancel the paginator and replace it with a single embed
-        await self.paginator.cancel(page=get_log_embed(logs))
+        assert isinstance(self.paginator, Paginator)
+        await self.paginator.cancel(
+            page=get_truncated_embed(
+                "Building and Testing... (streamed every 10 seconds)", logs
+            )
+        )
         message = interaction.message
+        assert message is not None
 
         # Run the process and keep outputing to the embed
         process = subprocess.Popen(
@@ -176,17 +207,28 @@ class BuildButton(PaginatorButton):
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             universal_newlines=True,
+            bufsize=1024,
         )
 
+        # Send logs every 10 seconds
+        curr_time = time.time()
         for line in iter(process.stdout.readline, ""):
             logs += line
-            try:
-                await message.edit(embed=get_log_embed(logs))
-            except Exception as e:
-                print(e)
+            if time.time() - curr_time > 10:
+                curr_time = time.time()
+                try:
+                    await message.edit(
+                        embed=get_truncated_embed(
+                            "Building and Testing... (streamed every 10 seconds)", logs
+                        )
+                    )
+                except Exception as e:
+                    print(e)
 
-        if process.returncode != 0:
-            await message.edit(embed=get_log_embed(logs, "Build and Test Failed"))
+        return_code = process.wait()
+
+        if return_code != 0:
+            await message.edit(embed=get_truncated_embed("Build and Test Failed", logs))
 
             error_lines = []
             for line in logs.split("\n"):
@@ -202,18 +244,57 @@ class BuildButton(PaginatorButton):
             # Check length of error message
             if len(errors) < 1500:
                 # Send as embed
-                await channel.send(embed=get_log_embed(errors, "Summarized Errors"))
+                await channel.send(
+                    embed=get_truncated_embed("Summarized Errors", errors)
+                )
             else:
                 await channel.send(
-                    embed=get_log_embed(errors[:1500], "Summarized Errors (truncated)"),
+                    embed=get_truncated_embed("Summarized Errors", logs),
                     file=discord.File(
                         BytesIO(errors.encode("utf-8")), filename="errors.txt"
                     ),
                 )
         else:
-            await message.edit(embed=get_log_embed(logs, "Build and Test Successful"))
-            chennl = message.channel
+            await message.edit(
+                embed=get_truncated_embed("Build and Test Successful", logs)
+            )
+            channel = message.channel
             await channel.send(f"Build and Test Successful")
+
+
+class PushButton(PaginatorButton):
+    def __init__(self):
+        emoji = discord.PartialEmoji(name="ireeghost", id=841412367001714688)
+        super().__init__(
+            "push",
+            label="Push to IREE Github",
+            style=discord.ButtonStyle.secondary,
+            emoji=emoji,
+            row=1,
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+
+        # Cancel the paginator and replace it with a single embed
+        assert isinstance(self.paginator, Paginator)
+        await self.paginator.cancel(
+            page=get_truncated_embed("Pushing to Github...", f"")
+        )
+        message = interaction.message
+        assert message is not None
+
+        try:
+            push_current_iree_to_github(get_branch_name(message.channel.id))
+        except Exception as e:
+            print(e)
+            return await message.edit(
+                embed=get_truncated_embed("Error Pushing to Github", e)
+            )
+
+        return await message.edit(
+            embed=get_truncated_embed("Push to Github Successfully", "")
+        )
 
 
 @bot.slash_command()
@@ -235,6 +316,7 @@ async def status(ctx: discord.ApplicationContext):
     paginator = Paginator(pages=pages, author_check=True, disable_on_timeout=True)
     paginator.add_button(AdvanceToButton())
     paginator.add_button(BuildButton())
+    paginator.add_button(PushButton())
 
     return await paginator.respond(ctx.interaction)
 
@@ -250,9 +332,12 @@ async def integerate(ctx: discord.ApplicationContext):
     # Start the integerate and push the branch to IREE upstream
     try:
         branch_name = start_integerate(None)
-        mb.git_push_branch("origin", branch_name, repo_dir=mb.iree_path)
+        push_current_iree_to_github(branch_name)
     except Exception as e:
-        return await ctx.send_followup(f"Error: {e}")
+        print(e)
+        return await ctx.send_followup(
+            f"There was an error while starting the integerate"
+        )
 
     message = await ctx.send(
         f"Date :{datetime.now().date()}\nAuthor: {ctx.author.mention}"

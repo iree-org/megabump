@@ -8,7 +8,7 @@ def start_integerate(args):
     if current_branch != "main":
         mb.git_exec(["switch", "main"], repo_dir=mb.iree_path)
     mb.git_fetch(repo_dir=mb.iree_path)
-    mb.git_exec(["pull", "--ff-only"], repo_dir=mb.iree_path)
+    mb.git_exec(["pull", "--ff-only", "origin", "main"], repo_dir=mb.iree_path)
     mb.git_exec(["submodule", "update", "--init"], repo_dir=mb.iree_path)
     base_branch_name = f"integrate-llvm-{date.today().strftime('%Y%m%d')}"
     branch_name = base_branch_name
