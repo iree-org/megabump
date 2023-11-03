@@ -4,7 +4,7 @@ import discord
 from discord.ext.pages import Paginator, Page, PaginatorButton
 from datetime import datetime
 from current_state import CurrentState
-from integerate import start_integerate
+from integrate import start_integrate
 import megabump_utils as mb
 import re
 import subprocess
@@ -197,7 +197,7 @@ async def status(ctx: discord.ApplicationContext):
     if not await check_role(ctx):
         return
 
-    # TODO: Add a check here if the branch and the integerate
+    # TODO: Add a check here if the branch and the integrate
 
     # Defer the slash command since getting the commits may take a while
     await ctx.defer()
@@ -215,16 +215,16 @@ async def status(ctx: discord.ApplicationContext):
 
 
 @bot.slash_command()
-async def integerate(ctx: discord.ApplicationContext):
+async def integrate(ctx: discord.ApplicationContext):
     if not await check_role(ctx):
         return
 
-    # Defer the slash command since starting the integerate may take a while
+    # Defer the slash command since starting the integrate may take a while
     await ctx.defer()
 
-    # Start the integerate and push the branch to IREE upstream
+    # Start the integrate and push the branch to IREE upstream
     try:
-        branch_name = start_integerate(None)
+        branch_name = start_integrate(None)
         mb.git_push_branch("origin", branch_name, repo_dir=mb.iree_path)
     except Exception as e:
         return await ctx.send_followup(f"Error: {e}")
@@ -234,9 +234,9 @@ async def integerate(ctx: discord.ApplicationContext):
     )
     thread = await message.create_thread(name=branch_name, auto_archive_duration=10080)
     message = await thread.send(
-        f"Create a PR for this integerate: https://github.com/openxla/iree/pull/new/{branch_name}"
+        f"Create a PR for this integrate: https://github.com/openxla/iree/pull/new/{branch_name}"
     )
-    return await ctx.send_followup("Integerate Started Successfully!")
+    return await ctx.send_followup("integrate Started Successfully!")
 
 
 bot.run(BOT_TOKEN)

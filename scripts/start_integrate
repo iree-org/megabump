@@ -2,7 +2,7 @@
 
 import sys
 
-from integerate import start_integerate, parse_arguments
+from integrate import start_integrate, parse_arguments
 
 if __name__ == "__main__":
-    start_integerate(parse_arguments(sys.argv[1:]))
+    start_integrate(parse_arguments(sys.argv[1:]))
