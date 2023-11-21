@@ -5,7 +5,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import Optional, Tuple
+from typing import List, Tuple
 
 import argparse
 from datetime import date
@@ -38,11 +38,23 @@ class CurrentState:
         self.is_clean = self.merge_base_commit == self.current_commit
         # List of (commit, desc) tuples in reverse chronological order for
         # commits that upstream is ahead.
-        self.new_commits = mb.git_log_range(
-            refs=("upstream/main", f"^{self.merge_base_commit}"),
-            paths=TRACK_PATHS,
-            repo_dir=LLVM_REPO_DIR,
+        self.new_commits = self.filter_commits(
+            mb.git_log_range(
+                refs=("upstream/main", f"^{self.merge_base_commit}"),
+                paths=TRACK_PATHS,
+                repo_dir=LLVM_REPO_DIR,
+            )
         )
+
+    def filter_commits(self, original: List[Tuple[str, str]]) -> List[Tuple[str, str]]:
+        results = []
+        for commit, desc in original:
+            # Filter out some common noise commit descriptions.
+            if "Apply clang-tidy fixes" in desc or "[Docs]" in desc:
+                continue
+
+            results.append((commit, desc))
+        return results
 
     def find_next_commit(self) -> Tuple[str, str]:
         """Finds the next LLVM commit to advance to.
@@ -109,7 +121,9 @@ def do_next(args):
 
 
 def do_range(args):
-    logs = mb.git_log_range(refs=(f"{args.from_ref}^1..{args.to_ref}",), repo_dir=LLVM_REPO_DIR)
+    logs = mb.git_log_range(
+        refs=(f"{args.from_ref}^1..{args.to_ref}",), repo_dir=LLVM_REPO_DIR
+    )
     for commit, desc in logs:
         print(f"{commit} : {desc}")
 
