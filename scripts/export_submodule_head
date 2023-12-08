@@ -96,12 +96,13 @@ def export_submodule_head(args, submodule_rel_path: str):
 
 
 def main(args):
-    return export_submodule_head(args, "third_party/llvm-project")
+    return export_submodule_head(args, args.submodule)
 
 
 def parse_arguments(argv):
     parser = argparse.ArgumentParser(description="Submodule exporter")
     parser.add_argument("--repo-path", default=mb.work_path / "iree", type=Path)
+    parser.add_argument("--submodule", default="third_party/llvm-project")
     parser.add_argument("--submodule-branch")
     args = parser.parse_args(argv)
     return args
