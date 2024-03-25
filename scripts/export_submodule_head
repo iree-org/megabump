@@ -16,6 +16,7 @@ def export_submodule_head(args, submodule_rel_path: str):
     submodule_path = super_repo_path / submodule_rel_path
     print(f"Operating on submodule {submodule_path}")
     if not mb.check_origin_update_help(submodule_path):
+        print("check_origin_update_help failed, returning")
         return 1
     mb.git_fetch(repository="origin", repo_dir=submodule_path)
     submodule_head, submodule_summary = mb.git_current_commit(repo_dir=submodule_path)
