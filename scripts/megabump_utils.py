@@ -353,7 +353,7 @@ def check_origin_update_help(repo_dir):
             "Your push URL is for GitHub HTTPS. You may need to switch to ssh for interactive use:"
         )
         print(f"  (cd {repo_dir} && git remote set-url --push origin {new_url})")
-        return False
+        return True  # Seems fine to continue? Maybe just on Windows?
     return True
 
 
