@@ -30,7 +30,7 @@ cd megabump
 mkdir work
 
 # Checkout iree into work/iree (Can also create a symlink to existing clone)
-git clone https://github.com/openxla/iree work/iree
+git clone https://github.com/iree-org/iree work/iree
 
 # Create a venv and install python deps in it
 python -m venv work/venv
@@ -214,7 +214,7 @@ Since I had two commits on the branch with a trivial repro, I proceeded to
 bisect the LLVM commits. It only took 3 steps and pinpointed the exact issue.
 I noted that the failure was clearly a bug upstream and not related to us,
 asked the author if it was ok to revert, and then did so. We ended up going
-the extra mile and [also providing an exact repro](https://github.com/openxla/iree/issues/15127)
+the extra mile and [also providing an exact repro](https://github.com/iree-org/iree/issues/15127)
 and helped the author roll forward. This is almost always what you want to do
 for these kinds of issues, especially one like this where one backend was
 causing failures on another. If the author hadn't responded immediately, in this
