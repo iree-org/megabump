@@ -8,7 +8,7 @@ organic.
 ## General Flow
 
 The goal of an integrate is to traverse a sequence of affecting LLVM commits
-between where we are and upstream HEAD. 
+between where we are and upstream HEAD.
 
 At each step, we do a light-weight
 local build and coarse validation that there are no egregious compiler bugs
@@ -24,7 +24,7 @@ push and land that. Then pick up the work to fix.
 
 ```
 # Checkout the megabump repo
-git clone https://github.com/shark-infra/megabump.git
+git clone https://github.com/iree-org/megabump.git
 
 cd megabump
 mkdir work
@@ -51,7 +51,7 @@ You usually want to push this newly created branch to upstream and submit a
 draft PR from that branch.
 TODO: Add a script to push this branch to the repo and create a draft PR.
 
-Then, it usually helps to plan your angle of attack. Run 
+Then, it usually helps to plan your angle of attack. Run
 `./scripts/llvm_revision status`.
 
 The output looks something like:
@@ -121,7 +121,7 @@ To skip some commits and advance to a specific commit hash:
 Finally, if the advance results in local patches being carried,
 `./scripts/export_submodule_head` will be called, which will advance the
 `sm-iree-{integrate_branch_name}` branch in the
-https://github.com/shark-infra/llvm-project repository. This is done by
+https://github.com/iree-org/llvm-project repository. This is done by
 creating special merge commits which ensure that all prior rebases on the
 branch remain reachable, allowing this to be a persistent submodule pointer
 that everyone can access.
@@ -160,7 +160,7 @@ CMake build of IREE underneath.
 
 ## API Changes / Compile Breaks
 
-These can range from simple, one-line fixes to build file/path changes, 
+These can range from simple, one-line fixes to build file/path changes,
 to massive breaking changes, etc.
 Usually, I'll have a look at the breaking patch and decide whether to just
 fix inline on the integrate machine or page out. If fixing locally, just
@@ -203,7 +203,7 @@ requiring manual intervention by anyone who hits the bug.
 
 Because when we advance through the integrate branch, we do not stop at every
 LLVM commit, it is possible that a bug in an LLVM backend sneaks in without
-us having stopped on the exact commit. As an example, consider 
+us having stopped on the exact commit. As an example, consider
 [this patch](https://github.com/llvm/llvm-project/pull/67178)
 to the RISC-V backend which broke our X86 codegen. In this case, the failure
 was in an e2e compilation test, which we validate on every affecting commit,
